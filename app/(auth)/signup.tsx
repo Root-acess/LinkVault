@@ -2,7 +2,15 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+import { supabase } from '@/lib/supabase';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -10,106 +18,129 @@ export default function SignUpPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rePassword, setRePassword] = useState('');
- 
+  const [loading, setLoading] = useState(false);
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
+    if (!email || !username || !password || !rePassword) {
+      alert('Please fill all fields');
+      return;
+    }
+
     if (password !== rePassword) {
       alert('Passwords do not match!');
       return;
     }
-    console.log('Sign up attempt with:', { username, password });
-    
+
+    setLoading(true);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username, // stored in user metadata
+        },
+      },
+    });
+
+    setLoading(false);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    // ✅ Signup success → go to tabs
+    router.replace('/(tabs)');
   };
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
         <View style={styles.header}>
           <ThemedText type="title" style={styles.title}>
-            Signup
+            Create Account
           </ThemedText>
-         
+          <ThemedText style={styles.subtitle}>
+            Join LinkVault and sync your world
+          </ThemedText>
         </View>
 
-        
+        {/* Form Card */}
         <View style={styles.formSection}>
-
           <View style={styles.inputGroup}>
-            <ThemedText type="defaultSemiBold" style={styles.inputLabel}>
-              Email
-            </ThemedText>
-            <View style={styles.inputWithIcon}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter Email"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
-          </View>
-        
-          <View style={styles.inputGroup}>
-            <ThemedText type="defaultSemiBold" style={styles.inputLabel}>
-              Username
-            </ThemedText>
-            <View style={styles.inputWithIcon}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter Username"
-                placeholderTextColor="#999"
-                value={username}
-                onChangeText={setUsername}
-              />
-            </View>
-          </View>
-
-          
-          <View style={styles.inputGroup}>
-            <ThemedText type="defaultSemiBold" style={styles.inputLabel}>
-              Password
-            </ThemedText>
-            <View style={styles.inputWithIcon}>
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor="#999"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-            </View>
+            <ThemedText style={styles.inputLabel}>Email</ThemedText>
+            <TextInput
+              style={styles.input}
+              placeholder="you@example.com"
+              placeholderTextColor="#9ca3af"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
           </View>
 
           <View style={styles.inputGroup}>
-            <ThemedText type="defaultSemiBold" style={styles.inputLabel}>
+            <ThemedText style={styles.inputLabel}>Username</ThemedText>
+            <TextInput
+              style={styles.input}
+              placeholder="Choose a username"
+              placeholderTextColor="#9ca3af"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <ThemedText style={styles.inputLabel}>Password</ThemedText>
+            <TextInput
+              style={styles.input}
+              placeholder="Create password"
+              placeholderTextColor="#9ca3af"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <ThemedText style={styles.inputLabel}>
               Confirm Password
             </ThemedText>
-            <View style={styles.inputWithIcon}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter password again"
-                placeholderTextColor="#999"
-                value={rePassword}
-                onChangeText={setRePassword}
-                secureTextEntry
-              />
-            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Repeat password"
+              placeholderTextColor="#9ca3af"
+              value={rePassword}
+              onChangeText={setRePassword}
+              secureTextEntry
+            />
           </View>
 
-          <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>
-            <ThemedText type="defaultSemiBold" style={styles.signUpButtonText}>
-              Signup
+          {/* Signup Button */}
+          <TouchableOpacity
+            style={styles.signUpButton}
+            onPress={handleSignUp}
+            disabled={loading}
+          >
+            <ThemedText style={styles.signUpButtonText}>
+              {loading ? 'Creating account...' : 'Create Account'}
             </ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity 
+
+          {/* Login Link */}
+          <TouchableOpacity
             style={styles.loginLink}
             onPress={() => router.push('/(auth)/signin')}
           >
-            
             <ThemedText type="link" style={styles.loginText}>
-              Login
+              Already have an account? Login
             </ThemedText>
           </TouchableOpacity>
         </View>
@@ -135,7 +166,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 10,
-     marginTop: 20,
+    marginTop: 20,
   },
   subtitle: {
     fontSize: 14,
@@ -157,10 +188,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     color: '#333',
   },
-  inputWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   input: {
     flex: 1,
     borderWidth: 1,
@@ -170,38 +197,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
     color: '#000',
-  },
-  cardSection: {
-    marginTop: 10,
-  },
-  cardInputRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  cardInput: {
-    flex: 1,
-    marginHorizontal: 5,
-  },
-  smallInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 14,
-    backgroundColor: '#fff',
-    color: '#000',
-  },
-  cvvRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cvvInput: {
-    flex: 1,
-    marginRight: 10,
-  },
-  picestText: {
-    fontSize: 12,
-    color: '#666',
   },
   signUpButton: {
     backgroundColor: '#007AFF',
@@ -223,17 +218,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#007AFF',
     textDecorationLine: 'underline',
-  },
-  footer: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 10,
-  },
-  footerText: {
-    fontSize: 13,
-    textAlign: 'center',
-    color: '#666',
-    lineHeight: 18,
   },
 });

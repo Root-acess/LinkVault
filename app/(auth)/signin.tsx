@@ -2,17 +2,44 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+import { supabase } from '@/lib/supabase';
 
 export default function SignInPage() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
- 
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    console.log('Login attempt with:', { username, password });
-    
+  const handleLogin = async () => {
+    if (!username || !password) {
+      alert('Please enter email and password');
+      return;
+    }
+
+    setLoading(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: username, // using "Username" input as email
+      password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      alert('Invalid email or password');
+      return;
+    }
+
+    // ✅ Login success → go to tabs
+    router.replace('/(tabs)');
   };
 
   return (
@@ -23,6 +50,7 @@ export default function SignInPage() {
             Login
           </ThemedText>
         </View>
+
         <View style={styles.formSection}>
           <View style={styles.inputGroup}>
             <ThemedText type="defaultSemiBold" style={styles.inputLabel}>
@@ -35,9 +63,12 @@ export default function SignInPage() {
                 placeholderTextColor="#999"
                 value={username}
                 onChangeText={setUsername}
+                autoCapitalize="none"
+                keyboardType="email-address"
               />
             </View>
           </View>
+
           <View style={styles.inputGroup}>
             <ThemedText type="defaultSemiBold" style={styles.inputLabel}>
               Password
@@ -53,12 +84,18 @@ export default function SignInPage() {
               />
             </View>
           </View>
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={handleLogin}
+            disabled={loading}
+          >
             <ThemedText type="defaultSemiBold" style={styles.loginButtonText}>
-              Login
+              {loading ? 'Logging in...' : 'Login'}
             </ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.signUpLink}
             onPress={() => router.push('/(auth)/signup')}
           >
@@ -91,7 +128,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 50,
   },
- 
+
   formSection: {
     backgroundColor: '#f9f9f9',
     borderRadius: 15,
@@ -120,7 +157,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     color: '#000',
   },
- 
+
   loginButton: {
     backgroundColor: '#007AFF',
     borderRadius: 8,
@@ -142,5 +179,4 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     textDecorationLine: 'underline',
   },
- 
 });
