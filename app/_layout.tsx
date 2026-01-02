@@ -1,14 +1,9 @@
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useAuth } from "@/hooks/useAuth";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-
-// 👉 replace this with Supabase / Firebase / AsyncStorage
-const useAuth = () => {
-  const user = null; 
-  return { user, loading: false };
-};
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -21,10 +16,12 @@ export default function RootLayout() {
 
     const inAuthGroup = segments[0] === "(auth)";
 
+    // 🚫 Not logged in → auth screens
     if (!user && !inAuthGroup) {
       router.replace("/(auth)/signin");
     }
 
+    // ✅ Logged in → app
     if (user && inAuthGroup) {
       router.replace("/(tabs)");
     }
