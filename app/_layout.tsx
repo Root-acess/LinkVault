@@ -23,7 +23,7 @@ export default function RootLayout() {
 
     // ✅ Logged in → app
     if (user && inAuthGroup) {
-      router.replace("/(tabs)");
+      router.replace("/(auth)/welcome");
     }
   }, [user, loading, segments]);
 
