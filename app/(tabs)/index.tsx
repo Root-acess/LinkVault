@@ -49,9 +49,11 @@ export default function Dashboard() {
   const [activeSlider, setActiveSlider] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [partialTranscription, setPartialTranscription] = useState<string>('');
-
-  // 🔧 KEYBOARD FIX: track keyboard height so command bar moves above it
   const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
+
+  /* PROFILE STATE */
+  const [showProfile, setShowProfile] = useState(false);
+  const profileAnim = useRef(new Animated.Value(0)).current;
 
   const animScale = useRef(new Animated.Value(1)).current;
   const pulseOpacity = useRef(new Animated.Value(0)).current;
@@ -59,21 +61,17 @@ export default function Dashboard() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
 
-  // Detect if native Voice module is actually usable
   const voiceAvailable = !!Voice && typeof Voice.start === 'function';
 
-  /* ---------- keyboard listeners (🔧 KEYBOARD FIX) ---------- */
+  /* ---------- keyboard listeners ---------- */
   useEffect(() => {
     const onShow = (e: any) => {
       setKeyboardHeight(e.endCoordinates?.height ?? 0);
-      // small timeout to allow layout to update before scrolling
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     };
     const onHide = () => setKeyboardHeight(0);
-
     const showSub = Keyboard.addListener('keyboardDidShow', onShow);
     const hideSub = Keyboard.addListener('keyboardDidHide', onHide);
-
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -99,7 +97,6 @@ export default function Dashboard() {
         setIsLoadingUser(false);
       }
     };
-
     loadUser();
   }, []);
 
@@ -118,7 +115,6 @@ export default function Dashboard() {
     attachListeners();
 
     return () => {
-      // Safe cleanup - only call if methods exist
       try {
         if (typeof Voice.removeAllListeners === 'function') {
           Voice.removeAllListeners();
@@ -190,7 +186,6 @@ export default function Dashboard() {
         return false;
       }
     }
-    // iOS handled via Info.plist
     return true;
   };
 
@@ -212,7 +207,6 @@ export default function Dashboard() {
       }
     }
 
-    // Fallback to expo-av
     await startExpoRecording();
   };
 
@@ -283,21 +277,17 @@ export default function Dashboard() {
         return;
       }
 
-      // Upload to AssemblyAI
+      // Upload + transcribe logic (same as before)
       const uploadResp = await FileSystem.uploadAsync(
         'https://api.assemblyai.com/v2/upload',
         uri,
-        {
-          headers: { authorization: ASSEMBLYAI_API_KEY },
-          httpMethod: 'POST',
-        }
+        { headers: { authorization: ASSEMBLYAI_API_KEY }, httpMethod: 'POST' }
       );
 
       const uploadBody = JSON.parse(uploadResp.body);
       const audioUrl = uploadBody?.upload_url;
       if (!audioUrl) throw new Error('No upload URL received');
 
-      // Start transcription
       const transcriptReq = await fetch('https://api.assemblyai.com/v2/transcript', {
         method: 'POST',
         headers: {
@@ -312,7 +302,6 @@ export default function Dashboard() {
 
       const transcriptId = transcriptResp.id;
 
-      // Poll for result
       let polling = true;
       let transcriptText = '';
       for (let i = 0; i < 30 && polling; i++) {
@@ -366,16 +355,8 @@ export default function Dashboard() {
 
     pulseLoopRef.current = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseOpacity, {
-          toValue: 0.25,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseOpacity, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
+        Animated.timing(pulseOpacity, { toValue: 0.25, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseOpacity, { toValue: 0, duration: 800, useNativeDriver: true }),
       ])
     );
     pulseLoopRef.current.start();
@@ -388,6 +369,25 @@ export default function Dashboard() {
       Animated.timing(animScale, { toValue: 1, duration: 200, useNativeDriver: true }),
       Animated.timing(pulseOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
     ]).start();
+  };
+
+  /* ---------- Profile Controls ---------- */
+  const openProfile = () => {
+    setShowProfile(true);
+    Animated.timing(profileAnim, {
+      toValue: 1,
+      duration: 280,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeProfile = () => {
+    Animated.timing(profileAnim, {
+      toValue: 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => setShowProfile(false));
   };
 
   /* ---------- Command Execution ---------- */
@@ -449,13 +449,21 @@ export default function Dashboard() {
           contentContainerStyle={[styles.scroll, { paddingBottom: 220 }]}
         >
           {/* HEADER */}
-          <Text style={styles.heading}>
-            Welcome back, {isLoadingUser ? '...' : username} 👋
-          </Text>
-          <Text style={styles.subheading}>Control your system quickly and smartly</Text>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.heading}>
+                Welcome back, {isLoadingUser ? '...' : username} 👋
+              </Text>
+              <Text style={styles.subheading}>Control your system quickly and smartly</Text>
+            </View>
+
+            <TouchableOpacity onPress={openProfile}>
+              <Ionicons name="person-circle-outline" size={42} color="#2563EB" marginTop={-35} />
+            </TouchableOpacity>
+          </View>
 
           {/* ROW 1 */}
-          <View style={styles.row}>
+          <View>
             <Card title="Recent Commands">
               {['Open Chrome', 'Shutdown', 'Play Music'].map((item) => (
                 <List key={item} icon="flash-outline" label={item} onPress={() => runCommand(item)} />
@@ -560,7 +568,7 @@ export default function Dashboard() {
           </Card>
 
           {/* ROW 2 */}
-          <View style={styles.row}>
+          <View>
             <Card title="Open Applications">
               {['Open Chrome', 'Open VS Code', 'Open Files'].map((item) => (
                 <List key={item} icon="apps-outline" label={item} onPress={() => runCommand(item)} />
@@ -600,7 +608,12 @@ export default function Dashboard() {
         </ScrollView>
 
         {/* Command Bar */}
-        <View style={[styles.commandBar, { left: 16, right: 16, bottom: insets.bottom + keyboardHeight + 12 }]}>
+        <View
+          style={[
+            styles.commandBar,
+            { left: 16, right: 16, bottom: insets.bottom + keyboardHeight + 12 },
+          ]}
+        >
           <TouchableOpacity
             onPress={() => Alert.alert('Attach', 'Attach feature coming soon')}
             style={{ marginRight: 8 }}
@@ -661,6 +674,52 @@ export default function Dashboard() {
             <Ionicons name="paper-plane" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
+
+        {/* PROFILE OVERLAY / BOTTOM SHEET */}
+        {showProfile && (
+          <View style={styles.profileOverlay}>
+            <TouchableOpacity style={{ flex: 1 }} onPress={closeProfile} />
+            <Animated.View
+              style={[
+                styles.profileSheet,
+                {
+                  transform: [
+                    {
+                      translateY: profileAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [400, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.sheetHandle} />
+
+              <View style={styles.profileHeader}>
+                <Ionicons name="person-circle" size={72} color="#2563EB" />
+                <Text style={styles.profileName}>{username}</Text>
+                <Text style={styles.profileEmail}>Supabase User</Text>
+              </View>
+
+              <ProfileItem icon="volume-high" label="Sound Effects" />
+              <ProfileItem icon="pulse" label="Haptic Feedback" />
+              <ProfileItem icon="color-palette" label="Theme (Auto)" />
+
+              <TouchableOpacity
+                style={styles.logoutBtn}
+                onPress={async () => {
+                  await supabase.auth.signOut();
+                  Alert.alert('Logged out');
+                  // Optionally navigate to login screen
+                }}
+              >
+                <Ionicons name="log-out-outline" size={18} color="#fff" />
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </LinearGradient>
   );
@@ -705,18 +764,32 @@ const QuickControl = ({ icon, label, onPress, color = '#2563EB', rightElement }:
   </TouchableOpacity>
 );
 
+const ProfileItem = ({ icon, label }: any) => (
+  <View style={styles.profileItem}>
+    <Ionicons name={icon} size={18} color="#475569" />
+    <Text style={styles.profileItemText}>{label}</Text>
+    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+  </View>
+);
+
 /* ---------- UTILS ---------- */
 function capitalize(str: string) {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
-/* ---------- STYLES (unchanged, just here for completeness) ---------- */
+/* ---------- STYLES ---------- */
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scroll: { paddingHorizontal: 16, paddingTop: 60 },
+  scroll: { paddingHorizontal: 16, paddingTop: 70 },
   heading: { fontSize: 30, fontWeight: '700', color: '#1E293B' },
   subheading: { fontSize: 16, color: '#64748B', marginBottom: 24 },
-  row: { flexDirection: 'row', gap: 14, marginBottom: 18 },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+     
+  },
   card: {
     flex: 1,
     backgroundColor: '#fff',
@@ -798,7 +871,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  commandInput: { fontSize: 15, paddingVertical: 6 },
+  commandInput: { fontSize: 15, paddingVertical: 6, flex: 1 },
   partialText: { color: '#94A3B8', fontSize: 12, marginTop: 4 },
   micBtn: {
     width: 44,
@@ -835,4 +908,70 @@ const styles = StyleSheet.create({
     borderColor: '#EEF4FF',
   },
   chatText: { color: '#0F172A', fontSize: 14 },
+
+  /* PROFILE STYLES */
+  profileOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    justifyContent: 'flex-end',
+  },
+  profileSheet: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    minHeight: 300,
+  },
+  sheetHandle: {
+    width: 48,
+    height: 5,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    borderRadius: 5,
+    marginBottom: 14,
+  },
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  profileEmail: {
+    color: '#64748B',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  profileItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: '#EEF4FF',
+  },
+  profileItemText: {
+    flex: 1,
+    marginLeft: 12,
+    color: '#334155',
+  },
+  logoutBtn: {
+    marginTop: 22,
+    backgroundColor: '#EF4444',
+    padding: 12,
+    borderRadius: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutText: {
+    color: '#fff',
+    marginLeft: 8,
+    fontWeight: '700',
+  },
 });
