@@ -1,17 +1,15 @@
-import { Tabs } from "expo-router";
-import React from "react";
+// app/(tabs)/_layout.tsx
+import { Stack } from 'expo-router';
 
 export default function TabLayout() {
   return (
-    <Tabs
+    <Stack
       screenOptions={{
         headerShown: false,
-
-        // 🚫 HIDE TAB BAR COMPLETELY
-        tabBarStyle: { display: "none" },
       }}
     >
-      <Tabs.Screen name="index" />
-    </Tabs>
+      <Stack.Screen name="index" options={{ title: 'Dashboard' }} />
+      <Stack.Screen name="scaner" options={{ title: 'Scanner' }} />
+    </Stack>
   );
 }

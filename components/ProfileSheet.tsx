@@ -53,7 +53,7 @@
 //   const initials = getInitials(username);
 
 //   return (
-//     <View style={styles.overlay}>
+//     <View style={styles.overlay} >
 //       <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
 
 //       <Animated.View

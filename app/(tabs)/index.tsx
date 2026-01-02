@@ -6,6 +6,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -120,7 +121,7 @@ export default function Dashboard() {
           Voice.removeAllListeners();
         }
         if (typeof Voice.destroy === 'function') {
-          Voice.destroy().catch(() => {});
+          Voice.destroy().catch(() => { });
         }
       } catch (err) {
         console.warn('Voice cleanup skipped (not native):', err);
@@ -147,7 +148,7 @@ export default function Dashboard() {
       const best = results[0].trim();
       setCommand(best);
       setPartialTranscription('');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
       runCommand(best);
     }
     setIsRecording(false);
@@ -518,8 +519,8 @@ export default function Dashboard() {
                     activeSlider === 'volume'
                       ? volume
                       : activeSlider === 'brightness'
-                      ? brightness
-                      : performance
+                        ? brightness
+                        : performance
                   }
                   onValueChange={(val) => {
                     if (activeSlider === 'volume') setVolume(val);
@@ -548,8 +549,8 @@ export default function Dashboard() {
                         activeSlider === 'volume'
                           ? volume
                           : activeSlider === 'brightness'
-                          ? brightness
-                          : performance;
+                            ? brightness
+                            : performance;
                       runCommand(activeSlider.charAt(0).toUpperCase() + activeSlider.slice(1), value);
                       setActiveSlider(null);
                     }}
@@ -675,51 +676,60 @@ export default function Dashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* PROFILE OVERLAY / BOTTOM SHEET */}
-        {showProfile && (
-          <View style={styles.profileOverlay}>
-            <TouchableOpacity style={{ flex: 1 }} onPress={closeProfile} />
-            <Animated.View
-              style={[
-                styles.profileSheet,
-                {
-                  transform: [
-                    {
-                      translateY: profileAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [400, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <View style={styles.sheetHandle} />
+{/* PROFILE OVERLAY / BOTTOM SHEET */}
+{showProfile && (
+  <View style={styles.profileOverlay}>
+    <TouchableOpacity style={{ flex: 1 }} onPress={closeProfile} />
+    <Animated.View
+      style={[
+        styles.profileSheet,
+        {
+          transform: [
+            {
+              translateY: profileAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [400, 0],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <View style={styles.sheetHandle} />
+      <View style={styles.profileHeader}>
+        <Ionicons name="person-circle" size={72} color="#2563EB" />
+        <Text style={styles.profileName}>{username}</Text>
+        <Text style={styles.profileEmail}>Supabase User</Text>
+      </View>
 
-              <View style={styles.profileHeader}>
-                <Ionicons name="person-circle" size={72} color="#2563EB" />
-                <Text style={styles.profileName}>{username}</Text>
-                <Text style={styles.profileEmail}>Supabase User</Text>
-              </View>
-
-              <ProfileItem icon="volume-high" label="Sound Effects" />
-              <ProfileItem icon="pulse" label="Haptic Feedback" />
-              <ProfileItem icon="color-palette" label="Theme (Auto)" />
-
-              <TouchableOpacity
-                style={styles.logoutBtn}
-                onPress={async () => {
-                  await supabase.auth.signOut();
-                  Alert.alert('Logged out');
-                  // Optionally navigate to login screen
-                }}
-              >
-                <Ionicons name="log-out-outline" size={18} color="#fff" />
-                <Text style={styles.logoutText}>Logout</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-        )}
+      {/* Other items */}
+      <ProfileItem icon="volume-high" label="Sound Effects" />
+      <ProfileItem icon="color-palette" label="Theme (Auto)" />
+       {/* CONNECT BUTTON – styled exactly like Logout */}
+      <TouchableOpacity
+        style={[styles.logoutBtn, { backgroundColor: '#3B82F6' }]} // blue color for connect (change if you want)
+        onPress={() => {
+          closeProfile();
+          router.push('./scaner');
+        }}
+      >
+        <Ionicons name="pulse-outline" size={18} color="#fff" />
+        <Text style={styles.logoutText}>Connect</Text>
+      </TouchableOpacity>
+      {/* Logout – remains unchanged */}
+      <TouchableOpacity
+        style={styles.logoutBtn}
+        onPress={async () => {
+          await supabase.auth.signOut();
+          Alert.alert('Logged out');
+        }}
+      >
+        <Ionicons name="log-out-outline" size={18} color="#fff" />
+        <Text style={styles.logoutText}>Logout</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  </View>
+)}
       </KeyboardAvoidingView>
     </LinearGradient>
   );
@@ -788,7 +798,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 24,
-     
+
   },
   card: {
     flex: 1,
