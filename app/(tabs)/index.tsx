@@ -64,6 +64,12 @@ export default function Dashboard() {
 
   const voiceAvailable = !!Voice && typeof Voice.start === 'function';
 
+  /* ---------------- CONNECTION STATE ---------------- */
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking'>(
+    'checking'
+  );
+  const [connectedDesktop, setConnectedDesktop] = useState<any | null>(null);
+
   /* ---------- keyboard listeners ---------- */
   useEffect(() => {
     const onShow = (e: any) => {
@@ -101,6 +107,131 @@ export default function Dashboard() {
     loadUser();
   }, []);
 
+  /* ------------- connection status: check + realtime ------------- */
+  useEffect(() => {
+    let channel: any;
+    let mounted = true;
+
+    const checkConnection = async () => {
+      try {
+        setConnectionStatus('checking');
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const user = session?.user;
+        if (!user) {
+          if (!mounted) return;
+          setConnectionStatus('disconnected');
+          setConnectedDesktop(null);
+          return;
+        }
+
+        // query for an approved, not expired pairing
+        const { data, error } = await supabase
+          .from('device_pairings')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'approved')
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error('Connection check error:', error);
+          setConnectionStatus('disconnected');
+          setConnectedDesktop(null);
+        } else if (data && data.length > 0) {
+          setConnectionStatus('connected');
+          setConnectedDesktop(data[0]);
+        } else {
+          setConnectionStatus('disconnected');
+          setConnectedDesktop(null);
+        }
+
+        // realtime subscription for this user's pairings
+        channel = supabase
+          .channel(`device_pairings_user_${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'device_pairings',
+              filter: `user_id=eq.${user.id}`,
+            },
+            (payload) => {
+              // on any change re-check state
+              checkConnection();
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Connection check failed:', err);
+        if (!mounted) return;
+        setConnectionStatus('disconnected');
+        setConnectedDesktop(null);
+      }
+    };
+
+    checkConnection();
+
+    return () => {
+      mounted = false;
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, []);
+
+  /* ---------- disconnect handler ---------- */
+  const disconnectDesktop = async () => {
+    const confirmDisconnect = () =>
+      new Promise<boolean>((resolve) =>
+        Alert.alert(
+          'Disconnect Desktop',
+          'Do you want to disconnect the linked desktop?',
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Disconnect', style: 'destructive', onPress: () => resolve(true) },
+          ],
+          { cancelable: true }
+        )
+      );
+
+    const ok = await confirmDisconnect();
+    if (!ok) return;
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const user = session?.user;
+      if (!user) return;
+
+      // mark all approved pairings for the user as expired
+      const { error } = await supabase
+        .from('device_pairings')
+        .update({ status: 'expired' })
+        .eq('user_id', user.id)
+        .eq('status', 'approved');
+
+      if (error) {
+        console.error('Disconnect failed:', error);
+        Alert.alert('Error', 'Failed to disconnect desktop.');
+        return;
+      }
+
+      setConnectionStatus('disconnected');
+      setConnectedDesktop(null);
+      Alert.alert('Disconnected', 'Desktop disconnected successfully.');
+    } catch (err) {
+      console.error('Disconnect error:', err);
+      Alert.alert('Error', 'Failed to disconnect desktop.');
+    }
+  };
+
   /* ------------- Voice setup & cleanup ------------- */
   useEffect(() => {
     if (!voiceAvailable) return;
@@ -121,7 +252,7 @@ export default function Dashboard() {
           Voice.removeAllListeners();
         }
         if (typeof Voice.destroy === 'function') {
-          Voice.destroy().catch(() => { });
+          Voice.destroy().catch(() => {});
         }
       } catch (err) {
         console.warn('Voice cleanup skipped (not native):', err);
@@ -148,7 +279,7 @@ export default function Dashboard() {
       const best = results[0].trim();
       setCommand(best);
       setPartialTranscription('');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       runCommand(best);
     }
     setIsRecording(false);
@@ -462,6 +593,61 @@ export default function Dashboard() {
               <Ionicons name="person-circle-outline" size={42} color="#2563EB" marginTop={-35} />
             </TouchableOpacity>
           </View>
+
+          {/* CONNECTION STATUS CARD */}
+{/* CONNECTION STATUS CARD */}
+<View style={styles.card}>
+  <Text style={styles.cardTitle}>Connection Status</Text>
+  <View style={styles.connectionContainer}>
+    <View style={styles.connectionInfo}>
+      <View
+        style={[
+          styles.statusDotLarge,
+          {
+            backgroundColor:
+              connectionStatus === 'connected'
+                ? '#22C55E'
+                : connectionStatus === 'checking'
+                ? '#F59E0B'
+                : '#EF4444',
+          },
+        ]}
+      />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.connectionTitle} numberOfLines={1}>
+          {connectionStatus === 'connected'
+            ? 'Desktop Connected'
+            : connectionStatus === 'checking'
+            ? 'Checking connection…'
+            : 'No Desktop Connected'}
+        </Text>
+        <Text style={styles.connectionSub} numberOfLines={1} ellipsizeMode="middle">
+          {connectionStatus === 'connected'
+            ? `ID: ${connectedDesktop?.desktop_id ?? 'Unknown'}`
+            : 'Scan QR to link device.'}
+        </Text>
+      </View>
+    </View>
+
+    {connectionStatus === 'connected' ? (
+      <TouchableOpacity 
+        style={[styles.actionBtn, styles.disconnectBtn]} 
+        onPress={disconnectDesktop}
+      >
+        <Ionicons name="link-outline" size={14} color="#fff" />
+        <Text style={styles.actionBtnText}>Disconnect</Text>
+      </TouchableOpacity>
+    ) : (
+      <TouchableOpacity
+        style={[styles.actionBtn, styles.connectBtn]}
+        onPress={() => router.push('./scaner')}
+      >
+        <Ionicons name="qr-code-outline" size={14} color="#fff" />
+        <Text style={styles.actionBtnText}>Connect</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+</View>
 
           {/* ROW 1 */}
           <View>
@@ -798,7 +984,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 24,
-
   },
   card: {
     flex: 1,
@@ -983,5 +1168,70 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginLeft: 8,
     fontWeight: '700',
+  },
+  connectionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    gap: 12,
+  },
+  connectionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1, // Takes up remaining space
+  },
+  statusDotLarge: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 10,
+  },
+  connectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  connectionSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  // Unified button style
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20, // Rounded "pill" shape looks better
+    gap: 6,
+  },
+  disconnectBtn: {
+    backgroundColor: '#EF4444', // Red for danger
+  },
+  connectBtn: {
+    backgroundColor: '#2563EB', // Blue for action
+  },
+  actionBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  /* connection UI */
+  connectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  connectBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    marginLeft: 6,
+  },
+  disconnectBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    marginLeft: 6,
   },
 });
